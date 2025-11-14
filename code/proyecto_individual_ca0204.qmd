@@ -1,0 +1,712 @@
+---
+title: "Proyecto individual. CA0204"
+author: "Benjamín Gutiérrez Padua. C4F813"
+format: 
+  html:
+    self-contained: true
+    toc: true
+    number-sections: true
+    code-fold: show
+    df-print: paged
+    smooth-scroll: true
+    theme: cosmo
+  pdf: 
+    number-sections: true
+    pdf-engine: pdflatex
+    mainfront: Arial
+    papersize: letter
+    geometry: margin=1in
+editor: visual
+---
+
+# Proyecto individual
+
+## Tema de investigación
+
+*Análisis de los Resultados Históricos (1960-2024) del Premio Mayor del Sorteo Extraordinario de Navidad "Gordo Navideño" en Costa Rica ¿Azar puro?*
+
+## Pregunta de investigación
+
+¿Los resultados del sorteo extraordinario de Navidad “Gordo Navideño” de la Junta de Protección Social se comportan como realizaciones de un proceso aleatorio puro, o muestran indicios de patrones estadísticos recurrentes?
+
+## Objetivo
+
+### General:
+
+Determinar si los resultados históricos del Premio Mayor del Gordo Navideño presentan algún patrón estadístico discernible o si, por el contrario, obedecen al comportamiento de un proceso de azar puro.
+
+### Específicos:
+
+-   Representar la frecuencia absoluta de los resultados históricos del Premio Mayor por ventanas de 5 años e intervalo temporal general
+
+-   Implementar pruebas de uniformidad e independencia mediante tests Chi-Square para evaluar la aleatoriedad de los sorteos.
+
+-   Interpretar los hallazgos desde el marco teórico de la probabilidad y la incertidumbre, abordando sus implicaciones para la noción de azar en juegos de lotería.
+
+## Marco conceptual 
+
+-   Independencia de eventos: Se refiere a una sucesión de hechos de no vínculados entre sí, de modo que la materialización de uno no supone la afectación del otro, es uno de los paradigmas de los modelos probabilísticos y supone un supuesto adecuado para representar los eventos (cada diferente resultado) del sorteo Gordo Navideño
+
+-   Tests Chi-Square: Tal como expone Thevapalan (2023), la prueba chi-cuadrado es una herramienta estadística diseñada para identificar patrones subyacentes entre variables categóricas. Su finalidad es comparar las frecuencias observadas en distintas clasificaciones con las frecuencias esperadas bajo la hipótesis de ausencia de asociación entre las variables. De acuerdo con el autor, la prueba se sustenta en los siguientes supuestos:
+
+    -   Los datos deben presentarse en forma de frecuencias o recuentos de casos.
+
+    -    Las categorías deben ser mutuamente excluyentes.
+
+    -   Para la prueba chi-cuadrado de independencia, la frecuencia esperada en cada categoría debe ser al menos 5.
+
+    -   La prueba de bondad de ajuste espera una frecuencia de al menos 1, sin que más del 20 % de las frecuencias esperadas sean inferiores a 5. (Thevapalan, 2023)
+
+-   Variable aleatoria discreta: Función que va de un espacio muestral a un conjunto de heinel - borel en R , como tal matemáticamente se puede entender como una función sobre la tripleta compuesta por el espacio muestral, la sigma-álgebra y una medida de probabilidad sobre los dos anteriores supracitados.
+
+-   Azar : El azar será comprendido como aquel conjunto de resultados que más allá de su forma aparente de inconexidad ha de satisfacer principios básicos comprendidos como la uniformidad y la no dependencia entre diferentes resultados sujetos de azar puro.
+
+## Presentación del Dataset
+
+```{r}
+#Librerías a utilizar
+library('dplyr');library('readr');library('readxl');library('tidyverse');library('tidyr'); library('ggplot2');library('here');library('lubridate')
+```
+
+```{r}
+# Defino ruta relativa
+here::here()
+
+# Importo el dataset de resultados históricos proporcionado por la Junta de Protección Social (JPS)
+ganadores <- read_csv("raw_data/ganadores.csv",skip = 4 , show_col_types= F)
+
+# Promedio de la diferencia entre la cantidad de sorteos interanuales
+mean_diferencias_sorteo <- round(mean(diff(ganadores$Sorteo)))
+
+```
+
+#### Variables de estudio:
+
+```{r}
+##Mostar
+names(ganadores)
+```
+
+-   **Año:** Representa el año de ejecución de la lotería
+
+-   **Sorteo:** Clasificación interna de registro de la Junta de Protección Social (JPS) respecto al conteo de los sorteos hechos, hay en promedio una cantidad 52 por año.
+
+-   **Fecha:** Representa el día de ejecución de la elección de los números de la tómbola, es decir la fecha de consecución del sorteo.
+
+-   **Serie:** Combinación aleatoria de 3 dígitos del 000 al 999 que dado el resultado de la variable (*Número)* supone el número ganador del "Mayor".
+
+-   **Número:** Combinación aleatoria de 2 dígitos del 00 al 99 que en conjunto con la variable *(Serie)* supone el número ganador del "Mayor".
+
+-   **Millones** **¢** **:** Es el monto en colones del premio "Mayor".
+
+Impresión de los resultados históricos
+
+```{r}
+print(ganadores)
+```
+
+Estructura actual de los datos
+
+```{r}
+# Estructura de los datos
+str(ganadores)
+```
+
+### Limpieza de los datos
+
+Como se puede puede observar en el data frame que representa los resultados de los ganadores para cada año, respecto a variables de interés importante como lo suponen: *Serie* y *Fecha*, están en un formato que no facilitará su manipulación (análisis), son numeric y character respectivamente, por ello se realizará transformación de los mismos a character y date a cada uno.
+
+```{r}
+# Conversion de tipo de dato
+ganadores$Fecha <- as.Date(ganadores$Fecha, format = '%d/%m/%Y')
+ganadores$Serie <- as.character(ganadores$Serie)
+ganadores$Número <- as.character(ganadores$Número)
+
+
+```
+
+### Sobre los valores ausentes y atípicos
+
+Como se puede constatar, la información proporcionada por la JPS está completa, no hay valores ausentes, así que de este modo se encuentra bien el data set. Respecto a los valores atípicos, dado que estamos partiendo del supuesto de que las realizaciones de cada resultado son independientes unos de otros y además son aleatorias entonces no hay necesidad de aplicar técnicas de control de outliers dado que introduciría un sesgo con el tratamiento de los datos con los cuales estudiaremos su comportamiento.
+
+## Análisis exploratorio de los datos (EDA)
+
+Primeramente cabe resaltar cómo se organiza el torneo y denotar las cantidades de posibles combinaciones que se pueden formar:
+
+1\) Se cuenta con dos tómbolas: la primera tómbola marca el número ganador, dicha tómbola es mezclada y se extrae una ficha que indica que número, esta primera tómbola cuenta con números del 00 al 99, es decir: 100 posibles resultados.
+
+2\) La segunda tómbola independiente de la primera cuenta con números desde el 000 al 999, con un total de 1,000 posibiles resultados, se mezcla y luego extrae una ficha.
+
+3\) El resultado que se da por la combinación de la serie de tres dígitos (SSS) con el resultado de dos dígitos (NN), forma el resultado :: SSS-NN , el cual tiene por independencia 100\*1,000= 100,000 combinaciones posibles.
+
+Ejemplo: Extraer número de tómbola 1:: 25, extraer serie de tómbola 2:: 124, resultado:: 124-25 es el número ganador del "Mayor".
+
+Para la presentación de los resultados ganadores en diferentes gráficas procedo a realizar la concatenación de *Serie* y *Número* en cada año para representar el resultado y facilitar su trabajo en gráficas
+
+```{r}
+# Se crea variable Resultado y anexa al data frame
+ganadores <- ganadores%>%
+  mutate(Resultado = paste0(Serie, "-", Número))
+```
+
+##### Frecuencia absoluta de resultados
+
+```{r}
+# Frecuencia absoluta resultados codigo
+ganadores %>% 
+  count(Resultado) %>%
+  arrange(n)%>%
+  head(15) %>%
+  ggplot(aes(x= Resultado, y = n)) +
+  geom_col(fill = "tomato") +
+  labs(title= "Primeros 15 resultados más frecuentes",
+       x = 'Resultado ganador',
+       y = 'Frecuencia') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 5))+
+  scale_x_discrete(expand = expansion(mult = c(0.05, 0.05)))+
+  scale_y_continuous(expand = expansion(mult = c(0,0.1)))
+
+
+```
+
+```{r}
+#Calculo si es equiprobable de forma porcentual 
+equiprobable <- 1/100000 * 100
+```
+
+Se puede observar que a lo mucho cada resultado apareció una vez (1), lo que quiere decir que para las 64 ediciones hechas hasta el momento, no se han dado repeticiones de los resultados siendo coherente si asumimos que cada resultado tiene una probabilidad equiprobable de realizarse, donde para cada realización hay 0.001% posibilidades de ocurrencia.
+
+##### **Frecuencia absoluta de resultados de variable Números**
+
+```{r}
+ganadores %>% 
+  count(Número) %>%
+  arrange(n)%>%
+  head(15) %>%
+  ggplot(aes(x= Número, y = n)) +
+  geom_col(fill = "chartreuse") +
+  labs(title= "Primeros 15 resultados de dos dígitos  más frecuentes",
+       x = 'Dos dígitos ganadores',
+       y = 'Frecuencia') +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0,0.1)))
+```
+
+Cada uno de los resultados obtenidos ha tenido como máximo una frecuencia de realización de uno (1) es decir, teniendo una posibilidad de ocurrencia del 1% para cada posible combinación de dos dígitos no se han manifestado repeticiones.
+
+##### Análisis temporal de frencuencias absolutas por ventanas de 5 años
+
+Se escudriña más profundamente el análisis ahora estableciendo para una banda de 5 años determinar la frecuencia absoluta con la que se repite la unidad y con la que se llega a repetir la decena
+
+```{r}
+#Preparacion de los datos a graficar 
+
+## Añado las columnas de decena y unidad
+ganadores <- ganadores %>% 
+  mutate(
+    Número = sprintf('%02d', as.numeric(Número)),
+    ## Uso substring con la finalidad de extaer como character
+    Decena = substr(Número, 1, 1), 
+    Unidad =  substr(Número, 2, 2)
+  )
+
+## Creo ventana temporal de 5 años (identificador de periodos en el data frame)
+ganadores <- ganadores %>% 
+  arrange(Año) %>%
+  mutate(periodo5 = cut(Año,
+                        breaks = seq(min(Año), max(Año) +5, by =5),
+                        right = F
+                        ))
+
+  
+## Determino las frecuencias para cada periodo 
+### Decenas
+freq_decena <- ganadores %>%
+  count(periodo5, Decena)
+###Unidades
+freq_unidades <- ganadores %>%
+  count(periodo5, Unidad)
+
+```
+
+###### Decenas
+
+```{r}
+freq_decena %>%
+  ggplot(aes(x= Decena, y = n, fill = Decena)) +
+  geom_col(fill = "chartreuse")+
+  facet_wrap(~ periodo5, ncol = 3, scales = "free") +
+  labs(title = "Frecuencia absolutas de decenas por ventana de 5 años",
+       x = "Decena",
+       y = " Frecuencia")+
+  theme_minimal()+
+  scale_y_continuous(limits = c(0,4), expand = expansion(mult = c(0,0.1)))
+           
+```
+
+En relación a la frecuencia absoluta del dígito correspondiente a la decena de la variable Número, si delimitamos a un intervalo de 5 años se pueden observar ciertos pesos por ocurrencia para ciertos intervalos de años como lo es el periodo de \[1975, 1980)
+
+###### Unidades
+
+```{r}
+freq_unidades %>%
+  ggplot(aes(x= Unidad, y = n, fill = Unidad)) +
+  geom_col(fill = "chartreuse")+
+  facet_wrap(~ periodo5, ncol = 3, scales = "free") +
+  labs(title = "Frecuencia absolutas de unidades por ventana de 5 años",
+       x = "Unidad",
+       y = " Frecuencia")+
+  theme_minimal()+
+  scale_y_continuous(limits = c(0,4), expand = expansion(mult = c(0,0.1)))
+```
+
+En relación a la frecuencia absoluta del dígito correspondiente a la unidad de la variable Número, si delimitamos a un lustro se pueden observar ciertos pesos por ocurrencia para ciertos intervalos de años como lo es el periodo de \[1960, 1965) , en donde la unidad se distribuyó de forma equitativa entre 2 y 5.
+
+##### **Frecuencia absoluta de resultados en intervalo temporal general (65 sorteos)**
+
+###### Decenas
+
+```{r}
+# De forma análoga graficamos
+freq_decena %>%
+  count(Decena) %>%
+  arrange(n) %>%
+  ggplot(aes(x= Decena, y =n))+
+  geom_col(fill = "deepskyblue")+
+  labs(title = " Frecuencia absoluta de cada dígito en la decena",
+       x = "Dígito",
+       y = "Frecuencia")+
+  theme_minimal()+
+  scale_y_continuous(expand = expansion(mult = c(0,0.1)))
+  
+           
+  
+  
+
+```
+
+Se puede observar que los dígitos con mayor frecuencia de ocurrencia en la decena son el cero(0) y nueve (9), considerando el intervalo temporal de los 65 años (el general), no obstante el dígito que cuentan con menos ocurrencia es el ocho (8).
+
+###### **Frecuencia absoluta del digito unidades en el intervalo temporal general.**
+
+```{r}
+# De forma análoga graficamos
+freq_unidades %>%
+  count(Unidad) %>%
+  arrange(n) %>%
+  ggplot(aes(x= Unidad, y =n))+
+  geom_col(fill = "deepskyblue")+
+  labs(title = " Frecuencia absoluta de cada dígito en la unidad",
+       x = "Dígito",
+       y = "Frecuencia")+
+  theme_minimal()+
+  scale_y_continuous(expand = expansion(mult = c(0,0.1)))
+
+```
+
+Nuevamente y de forma curiosa se puede apreciar que los valores con mayor ocurrencia son el cero (0) y el nueve (9) para la unidad y de forma análoga el dígito con menor ocurrencia vuelve a ser el ocho (8) considerando el intervalo de tiempo general.
+
+#### Análisis de la frecuencia absoluta de los dígitos del número Serie
+
+```{r}
+## Realizaré un facet wrap en donde en conjunto grafique simultaneamente las frecuencias absolutas para la unidad, decena y centena de la serie
+
+## Añado las columnas de decena y unidad
+ganadores <- ganadores %>% 
+  mutate(
+    Serie = sprintf('%03d', as.numeric(Serie)),
+    ## Uso substring con la finalidad de extaer como character
+    CentenaSerie = substr(Serie, 1,1),
+    DecenaSerie = substr(Serie, 2, 2), 
+    UnidadSerie =  substr(Serie, 3, 3))
+#Ahora realizamos face wrap para la frecuencia de cada uno de dichos 
+
+## Paso a formato largo para manejar solo dos variables y graficar en un solo facet_wrap
+
+ganadores_largo <- ganadores %>%
+  pivot_longer(
+    cols = c(CentenaSerie , DecenaSerie , UnidadSerie),
+    names_to = 'Posición',
+    values_to = 'Digito'
+  )
+
+```
+
+### Resultado de la frecuencia absoluta para cada dígito de la Serie
+
+```{r}
+ganadores_largo %>%
+  count(Posición, Digito) %>%
+  ggplot(aes(x= Digito, y = n, fill = Digito))+
+  geom_col(fill = 'tomato')+
+  facet_wrap(~ Posición, nrow = 1, scales = 'free_x')+
+  labs(title = "Frecuencia absoluta para cada dígito de la serie",
+       x= "Dígito",
+       y = " Frecuencia")+
+  theme_minimal()
+```
+
+Con la gráfica de las frecuencias absolutas para cada dígito del número de *Serie* se puede notar que: para la centena hay un parecido al de una normal con media 5 (terminar de constatar), hay una fuerte propensión para la decena a tomar valores de 9 , mientras que al igual que en el número de dos dígitos la unidad tiene cierta afinidad por los valores extremos de cero (0) y nueve (9)
+
+### Aplicación de test de uniformidad Chi-cuadrado y test de independencia Chi-cuadrado.
+
+Hasta el momentos se ha podido identificar que para el periodo general existen ciertos pesos en números como cero (0) y nueve (9) que facultan mayor ocurrencia para las decenas y unidades del número de dos dígitos. Ahora bien, hemos de constatar si ello obedece a elementos de azar puro, así que se aplicará una prueba de uniformidad mediante la distribución chi-square, para lo cual analizaremos el valor de p resultante.
+
+Basados en el instructivo de <https://www.datacamp.com/es/tutorial/chi-square-test-r>
+
+Se ha decidido realizar dos tipos diferentes de pruebas chi-square.
+
+-   La primera prueba se realizará con la finalidad de evaluar si cada dígito sigue una distribución uniforme, para lo cual se realizará un total de 5 pruebas (para cada variable aleatoria discreta que concatenadas representan el número ganador del premio mayor)
+
+-   La segunda prueba se ejecutará en conjunto para las 5 variables aleatorias discretas que representan cada dígito
+
+### Tes de uniformidad Chi- square
+
+-   Se estudia la variable aleatoria discreta que representa la unidad del número de dos dígitos.
+
+Sea la **hipótesis nula (N0) :** La variable aleatoria discreta que rerpesenta unidad del número de los dos dígitos sigue una distribución uniforme.
+
+Sea la **hipótesis alternativa (N1) :** Los resultados no se distribuyen de forma uniforme (no siguen línea equiprobable) para la variable aleatoria discreta que representa la unidad del número de los dos dígitos
+
+```{r}
+#Test para unidad de número de dos dígitos de uniformidad 
+## Si testeamos es equiprobable cada digito para el universo de 10 tiene prob. de 0.1
+
+resultado1 <- chisq.test(table(ganadores$Unidad), p= rep(0.1,10)) ## Para la tabla de frecuencias de la unidad de num dos digitos testear uniformidad
+
+
+cat("X² =" , resultado1$statistic, " | gl = ", resultado1$parameter, " | p = ", resultado1$p.value)
+```
+
+**Considerar:**
+
+------------------------------------------------------------------------
+
+Donde X² mide la magnitud de la desviacion entre resultados observados y esperados, gl: representa los grados de libertad y p la probabilidad de obtener una desviación extrema si los datos (dígitos) fueran uniformes
+
+------------------------------------------------------------------------
+
+Notar p = 0456 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 8.69 pequeño entonces para los dígitos de la unidad del número de dos dígitos **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia.
+
+Denotamos en donde se dieron diferencias del valor esperado y la realización observada para cada iteración
+
+```{r}
+## Se crea data frame que representa un resumen de los datos observados y su la  discrepancia con lo esperado (teórico)
+prueba1 <- data.frame(
+  Dígito = names(resultado1$observed),
+  Observado = as.numeric(resultado1$observed),
+  Esperado =  as.numeric(resultado1$expected),
+  Diferencia = as.numeric(abs(resultado1$expected - resultado1$observed))
+)
+
+```
+
+Discrepancia entre datos observados y su valor esperado teórico
+
+```{r}
+print(prueba1)
+```
+
+En este data frame se ha representado para cada dígito que puede tomar la variable aleatoria N_2 la discrepancia entre la frecuencia esperada (teórica) con su cantidad de realizaciones (observaciones), donde pese a haber una mayor cantidad de ocurencias del dígito 0 aún se cumple que esta variable aleatoria sigue una distribución uniforme.
+
+-   Se estudia variable aleatoria discreta que representa la decena para el número de dos dígitos.
+
+Sea la **hipótesis nula (N0') :** La variable aleatoria que representa la unidad del número de dos dígitos sigue una distribución uniforme
+
+Sea la **hipótesis alternativa (N1') :** Los resultados no se distribuyen de forma uniforme (no siguen línea equiprobable) para la variable aleatoria de las decenas del número de dos dígitos
+
+```{r}
+#Test para unidad de número de dos dígitos de uniformidad 
+## Si testeamos es equiprobable cada digito para el universo de 10 tiene prob. de 0.1
+
+resultado2 <- chisq.test(table(ganadores$Decena), p= rep(0.1,10)) ## Para la tabla de frecuencias de la unidad de num dos digitos testear uniformidad
+
+
+cat("X² =" , resultado2$statistic, " | gl = ", resultado2$parameter, " | p = ", resultado2$p.value)
+
+```
+
+Notar p = 0.778 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 5.61 pequeño entonces para los dígitos de la unidad del número de dos dígitos **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia. Se descarta N1'.
+
+```{r}
+## Se crea data frame que representa un resumen de los datos observados y su la  discrepancia con lo esperado (teórico)
+prueba2 <- data.frame(
+  Dígito = names(resultado2$observed),
+  Observado = as.numeric(resultado2$observed),
+  Esperado =  as.numeric(resultado2$expected),
+  Diferencia = as.numeric(abs(resultado2$expected - resultado2$observed))
+)
+
+```
+
+Discrepancias entre resultados ocurridos y esperados para la variable aleatoria discreta que representa la decena del número de dos dígitos
+
+```{r}
+print(prueba2)
+```
+
+Para esta variable aleatoria se puede observar que si bien la observaciones no sigueron su valor esperado teórico a raja tabla, las diferencias fueron menos significativas para cada uno de los elementos en omega (el espacio muestral)
+
+-   Test de uniformidad para variable aleatoria discreta que representa la unidad del número de Serie
+
+Sea la **hipótesis nula (S0') :** La variable aleatoria que representa la unidad del número de dos dígitos sigue una distribución uniforme
+
+Sea la **hipótesis alternativa (S1') :** Los resultados no se distribuyen de forma uniforme (no siguen línea equiprobable) para la variable aleatoria de las decenas del número de dos dígitos.
+
+```{r}
+#Test para unidad de número de dos dígitos de uniformidad 
+## Si testeamos es equiprobable cada digito para el universo de 10 tiene prob. de 0.1
+
+resultado3 <- chisq.test(table(ganadores$UnidadSerie), p= rep(0.1,10)) ## Para la tabla de frecuencias de la unidad de num dos digitos testear uniformidad
+
+
+cat("X² =" , resultado3$statistic, " | gl = ", resultado3$parameter, " | p = ", resultado3$p.value)
+```
+
+Notar p = 0.589 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 7.456 pequeño entonces para los dígitos de la unidad del número de la Serie **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia. Se descarta S1'.
+
+Discrepancias entre realizaciones y valores esperados teóricos para la variable aleatoria discreta que representa la unidad del número serie.
+
+```{r}
+## Se crea data frame que representa un resumen de los datos observados y su la  discrepancia con lo esperado (teórico)
+prueba3 <- data.frame(
+  Dígito = names(resultado3$observed),
+  Observado = as.numeric(resultado3$observed),
+  Esperado =  as.numeric(resultado3$expected),
+  Diferencia = as.numeric(abs(resultado3$expected - resultado3$observed))
+)
+
+```
+
+Tabla
+
+```{r}
+print(prueba3)
+```
+
+Observar que para la variable aleatoria discreta ***S1*** pese a no seguir a completitud las realizaciones esperadas teóricas la diferencia respecto a la teórica es relativamente baja.
+
+-   Test uniformidad para la variable aleatoria ***S2***
+
+Sea la **hipótesis nula (S0'') :** La variable aleatoria que representa la unidad del número de dos dígitos sigue una distribución uniforme
+
+Sea la **hipótesis alternativa (S1'') :** Los resultados no se distribuyen de forma uniforme (no siguen línea equiprobable) para la variable aleatoria de las decenas del número de dos dígitos.
+
+```{r}
+#Test para unidad de número de dos dígitos de uniformidad 
+## Si testeamos es equiprobable cada digito para el universo de 10 tiene prob. de 0.1
+
+resultado4 <- chisq.test(table(ganadores$DecenaSerie), p= rep(0.1,10)) ## Para la tabla de frecuencias de la unidad de num dos digitos testear uniformidad
+
+
+cat("X² =" , resultado4$statistic, " | gl = ", resultado4$parameter, " | p = ", resultado4$p.value)
+
+```
+
+Notar p = 0.193 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 12.4 pequeño entonces para los dígitos de la decena del número de Serie **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia. Se descarta S1''.
+
+Nota el p obtenido ha sido relativamente más pequeño que los anteriores
+
+```{r}
+## Se crea data frame que representa un resumen de los datos observados y su la  discrepancia con lo esperado (teórico)
+prueba4 <- data.frame(
+  Dígito = names(resultado4$observed),
+  Observado = as.numeric(resultado4$observed),
+  Esperado =  as.numeric(resultado4$expected),
+  Diferencia = as.numeric(abs(resultado4$expected - resultado4$observed))
+)
+
+```
+
+Discrepancia de realizaciones con valores esperados teóricos para la variable aleatoria discreta que representa la decena del número de serie.
+
+```{r}
+print(prueba4)
+```
+
+Se puede notar que si bien la variable aleatoria sigue una distribución uniforme, para la realización "tomar el dígito 9" excede con una magnitud significativa la diferencia entre el valor esperado teórico y el observado.
+
+-   Test de uniformidad para ***S3*** variable aleatoria discreta que representa lo dígitos que toma centena del número de serie.
+
+Sea la **hipótesis nula (S0''') :** La variable aleatoria que representa la unidad del número de dos dígitos sigue una distribución uniforme
+
+Sea la **hipótesis alternativa (S1''') :** Los resultados no se distribuyen de forma uniforme (no siguen línea equiprobable) para la variable aleatoria de las decenas del número de dos dígitos.
+
+```{r}
+#Test para unidad de número de dos dígitos de uniformidad 
+## Si testeamos es equiprobable cada digito para el universo de 10 tiene prob. de 0.1
+
+resultado5 <- chisq.test(table(ganadores$CentenaSerie), p= rep(0.1,10)) ## Para la tabla de frecuencias de la unidad de num dos digitos testear uniformidad
+
+
+cat("X² =" , resultado5$statistic, " | gl = ", resultado5$parameter, " | p = ", resultado5$p.value)
+
+```
+
+Notar p = 0.286 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 10.84 pequeño entonces para los dígitos de la centena del número de serie **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia. Se descarta S1'''.
+
+Nota: Nuevamente p toma un valor relativamente pequeño respecto a los anteriores
+
+```{r}
+
+## Se crea data frame que representa un resumen de los datos observados y su la  discrepancia con lo esperado (teórico)
+prueba5 <- data.frame(
+  Dígito = names(resultado5$observed),
+  Observado = as.numeric(resultado5$observed),
+  Esperado =  as.numeric(resultado5$expected),
+  Diferencia = as.numeric(abs(resultado5$expected - resultado5$observed))
+)
+
+```
+
+Discrpancia entre realización y valor esperado teórico para S3
+
+```{r}
+print(prueba5)
+```
+
+Observar que el dígito 0 presentó una mayor diferencia absoluta respecto a sus observaciones y número de realizaciones teóricos, no obstante la variable aleatoria sigue una distribución uniforme.
+
+### Test de independencia mediante Chi-Cuadrado
+
+Realizaremos a continuación una prueba de independencia para determinar si nuestras variables aleatorias discretas ***S_1S_2S_3-N_1N_2*** son independientes o bien existe alguna relación subyacente entre ellas.
+
+```{r}
+#Preparación del dataset  
+## Dado que no se puede aplicar el test de independencia de la Chi-Square para más de dos variables aleatorias en simultaneo procedemos a aplicarlo por pares, (para  comparar más de dos se requiere aplicar modelos log lineales)
+
+## Aseguro pasar como variables categoricas a los digitos de 0 - 9 es decir a factor 
+### Para los numeros de dos digitos 
+ganadores$Unidad <- factor(ganadores$Unidad, levels = 0:9)
+ganadores$Decena <- factor(ganadores$Decena, levels = 0:9)
+### Para las series
+ganadores$UnidadSerie <- factor(ganadores$UnidadSerie, levels = 0:9)
+ganadores$DecenaSerie <- factor(ganadores$DecenaSerie, levels = 0:9)
+ganadores$CentenaSerie <- factor(ganadores$CentenaSerie, levels = 0:9)
+
+
+# Se crea tablas de contingencias para comparacion de independencia entre pares 
+## Numero de dos digitos
+tabla1_conti_du <- table(ganadores$Decena, ganadores$Unidad)
+## Numero de la serie 
+###Decena y Unidad
+tabla2_conti_du <- table(ganadores$DecenaSerie, ganadores$UnidadSerie)
+### Centena y Decena
+tabla2_conti_cd <- table(ganadores$CentenaSerie, ganadores$DecenaSerie)
+### Centena y Unidad
+tabla2_conti_cu <- table(ganadores$CentenaSerie,ganadores$UnidadSerie)
+
+
+
+```
+
+#### Test independencia entre variable aleatoria discreta ***N1*** \^ ***N2***
+
+Sea la hipotesis nula (H0): Las variables aleatorias discretas ***N1*** \^ ***N2*** son independientes
+
+Sea la hipótesis alternativa (H1): Las variables aleatorias discretas ***N1*** \^ ***N2*** son dependientes
+
+```{r}
+## se realiza prueba 
+
+## Observacion dado que el calculo de p en R es hecho mediante las siguientes hipotesis: Las frecuencias esperadas para cada celda son suf. grandes al menos >= 5 en al menos el 80% de las celdas y ninguna <1 , junto con la independencia entre datos
+## Pero por lo observado anteriormente (dado que el dataset es relativamente pequeño, como se cuentan con 65 sorteos se tiene que la frecuencia esperada por cada celda es del 0.65 que es menor a 5 (0.65 <5)) 
+### Entonces para solventar este problema del parametro p se usa el argumento de la funcion chi-test de r que hace una simulacion de p mediante la tecnica monte carlo 
+
+independencia1 <- chisq.test(tabla1_conti_du, simulate.p.value = T, B = 10000)
+
+cat(" X² = ", independencia1$statistic, " | p = ", independencia1$p.value )
+```
+
+Se puede observar que se obtiene un valor (estimado por simulación monte carlo) p- grande p = 0.696 \> 0.05 (nivel de significancia) con una magnitud de X² = 76.1 para unos grados de libertad dg dados por (10-1) \* (10-1) = 81 , Entonces se puede concluir que hay independencia entre las variables aleatorias discretas ***N1*** \^ ***N2**, se rechaza H1*
+
+### Test de independencia para las varialbes aleatorias discretas ***S1,S2 & S3*** mediante Chi-Square
+
+#### Decena y unidad de la serie
+
+Sea la hipotesis nula (A0): Las variables aleatorias discretas ***S3*** \^ ***S2*** son independientes
+
+Sea la hipótesis alternativa (A1): Las variables aleatorias discretas ***S3*** \^ ***S2*** son dependientes
+
+```{r}
+independencia2 <- chisq.test(tabla2_conti_du, simulate.p.value =  T, B = 10000)
+cat(" X² = ", independencia2$statistic, " | p = ", independencia2$p.value )
+```
+
+Se puede observar que se obtiene un valor (estimado por simulación monte carlo) p- grande p = 0.507 \> 0.05 (nivel de significancia) con una magnitud de X² = 81.13 para unos grados de libertad dg dados por (10-1) \* (10-1) = 81 , Entonces se puede concluir que hay independencia entre las variables aleatorias discretas ***S3*** \^ ***S2***, se descarta A1
+
+#### Decena y Centena de la serie
+
+Sea la hipotesis nula (A0)': Las variables aleatorias discretas ***S1*** \^ ***S2*** son independientes
+
+Sea la hipótesis alternativa (A1'): Las variables aleatorias discretas ***S1*** \^ ***S2*** son dependientes
+
+```{r}
+independencia3 <- chisq.test(tabla2_conti_cd, simulate.p.value =  T, B = 10000)
+cat(" X² = ", independencia3$statistic, " | p = ", independencia3$p.value )
+```
+
+Se puede observar que se obtiene un valor (estimado por simulación monte carlo) p- grande p = 0.233 \> 0.05 (nivel de significancia) con una magnitud de X² = 89.797 para unos grados de libertad dg dados por (10-1) \* (10-1) = 81 , Entonces se puede concluir que hay independencia entre las variables aleatorias discretas ***S1***\^ ***S2***, notar p es más pequeño que para los de las pruebas anteriores. Se descarta A1'
+
+#### Centena y Unidad de la Serie
+
+Sea la hipotesis nula (A0''): Las variables aleatorias discretas ***S1*** \^ ***S3*** son independientes
+
+Sea la hipótesis alternativa (A1''): Las variables aleatorias discretas ***S1*** \^ ***S3*** son dependientes
+
+```{r}
+independencia4 <- chisq.test(tabla2_conti_cu, simulate.p.value =  T, B = 10000)
+cat(" X² = ", independencia4$statistic, " | p = ", independencia4$p.value )
+```
+
+Se puede observar que se obtiene un valor (estimado por simulación monte carlo) p- grande p = 0.443\> 0.05 (nivel de significancia) con una magnitud de X² = 83.085 para unos grados de libertad dg dados por (10-1) \* (10-1) = 81 , Entonces se puede concluir que hay independencia entre las variables aleatorias discretas ***S3*** \^ ***S1***. Se descarta A1''.
+
+## Gráfico de dispersión con línea de identidad \~ independencia
+
+A continuación se modela mediante una línea de identidad que representa los valores teóricos que deberían de obtener las variables aleatorias discretas ***N1*** \^ ***N2*** en conjunto, el eje de las abcisas representara la frecuencia esperada por indepedencia mientras que el eje de las oordenadas será la frecuencia observada real, tender a Y = X es señal de independencia.
+
+```{r}
+# Registro digitos decena y unidad 
+tabla_numeros <- table(ganadores$Decena, ganadores$Unidad)
+
+# Frecuencia teórica bajo independencia
+
+esperado <- chisq.test(tabla_numeros)$expected
+# Conversion de la estructura
+df_graph <- as.data.frame(tabla_numeros)
+
+df_graph$Teorico <- suppressWarnings(as.vector(esperado)) #Dado que el data set que se le ha pasado a la Chi.test es pequeño no satisface los supuestos de R para hacer aproximaciones finas para estudiar p-test resultado, pero esto para el propósito de la gráfica será ignorado y por ello se suprime el warning 
+
+
+
+
+
+```
+
+```{r}
+## Grafica 
+
+ggplot(df_graph, aes(x= Teorico, y = Freq)) +
+  geom_point(color = "darkblue")+
+  geom_abline(slope = 1, intercept = 0, linetype = 'solid', color = "tomato", linewidth = 2)+
+  geom_smooth(method = 'lm', se = F, color = 'deepskyblue', linetype = 'solid' ,linewidth = 1) +
+  labs ( title = 'Frecuencias observadas realizadas respecto a la linea teórica (independencia) ', subtitle = " Línea azul es de tendencia aproximada para las VA.",
+         x= "Esperadas bajo independencia", y = 'Frecuencias realizadas') + 
+  scale_y_continuous(trans = 'sqrt')
+  theme_minimal()
+  
+
+```
+
+En esta gráfica estamos representando la independencia entre los dígitos de decena y unidad del número de dos dígitos, es decir las VA´s, ***N1 & N2*** podemos notar que pese a muestra pequeña la tendencia promedio de los datos (línea azul) sigue un comportamiento similar a Y = X (es decir la igualdad entre las realizaciones empíricas y las expectadas teóricas) lo que una vez más constata la independencia obtenida de los resultados de las pruebas chi-square aplicadas anteriormente.
+
+## Referencias
+
+-   DataCamp. (s.f.). *Prueba Chi-Cuadrado en R: Una guía completa*. DataCamp.\
+
+    <https://www.datacamp.com/es/tutorial/chi-square-test-r>
+
+-   MARIACHER. (2024, octubre 15). *Test de chi-cuadrado*. RPubs.\
+
+    <https://rpubs.com/MARIACHER/1339076>
