@@ -43,7 +43,7 @@ Determinar si los resultados históricos del Premio Mayor del Gordo Navideño pr
 
 -   Interpretar los hallazgos desde el marco teórico de la probabilidad y la incertidumbre, abordando sus implicaciones para la noción de azar en juegos de lotería.
 
-## Marco conceptual 
+## Marco conceptual
 
 -   Independencia de eventos: Se refiere a una sucesión de hechos de no vínculados entre sí, de modo que la materialización de uno no supone la afectación del otro, es uno de los paradigmas de los modelos probabilísticos y supone un supuesto adecuado para representar los eventos (cada diferente resultado) del sorteo Gordo Navideño
 
@@ -51,7 +51,7 @@ Determinar si los resultados históricos del Premio Mayor del Gordo Navideño pr
 
     -   Los datos deben presentarse en forma de frecuencias o recuentos de casos.
 
-    -    Las categorías deben ser mutuamente excluyentes.
+    -   Las categorías deben ser mutuamente excluyentes.
 
     -   Para la prueba chi-cuadrado de independencia, la frecuencia esperada en cada categoría debe ser al menos 5.
 
@@ -387,7 +387,7 @@ Donde X² mide la magnitud de la desviacion entre resultados observados y espera
 
 ------------------------------------------------------------------------
 
-Notar p = 0456 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 8.69 pequeño entonces para los dígitos de la unidad del número de dos dígitos **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia.
+Notar p = 0.456 \> 0.05 (nivel de significancia del 5% con un umbral de confianza del 95% ) es decir, p -grande \^ X² = 8.69 pequeño entonces para los dígitos de la unidad del número de dos dígitos **se cumple** que los datos son compatibles con el modelo de uniformidad , cada número tiene un peso equiprobable de ocurrencia.
 
 Denotamos en donde se dieron diferencias del valor esperado y la realización observada para cada iteración
 
